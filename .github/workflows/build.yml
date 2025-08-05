@@ -1,93 +1,38 @@
 name: Build Monaco Bot EXE
 
-# Se ejecuta cuando subes código a la rama main
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # También permite ejecutar manualmente
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-2019  # Windows compatible con computadoras viejas
+    strategy:
+      matrix:
+        os: [windows-2022]
+        python-version: ['3.9']
+    
+    runs-on: ${{ matrix.os }}
     
     steps:
-    # Descargar tu código
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    # Instalar Python 3.8 (compatible)
-    - name: Set up Python 3.8
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: '3.8'
+        python-version: ${{ matrix.python-version }}
         
-    # Instalar dependencias
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller==6.2.0
-        pip install opencv-python-headless==4.8.1.78
-        pip install numpy==1.24.3
-        pip install Pillow==10.0.1
-        pip install pywinauto==0.6.8
+        pip install pyinstaller opencv-python-headless numpy Pillow pywinauto
         
-    # Verificar que los archivos están ahí
-    - name: List files
+    - name: Build with PyInstaller
       run: |
-        dir
-        if exist images dir images
+        pyinstaller --onefile --windowed --icon=icon.ico --add-data "images;images" monaco_bot_debug3.py --name Monaco_Bot
         
-    # Compilar el ejecutable
-    - name: Build executable with PyInstaller
-      run: |
-        pyinstaller monaco_bot_debug3.py ^
-          --name Monaco_Bot ^
-          --onefile ^
-          --windowed ^
-          --icon=icon.ico ^
-          --add-data "images;images" ^
-          --hidden-import=cv2 ^
-          --hidden-import=numpy ^
-          --hidden-import=PIL ^
-          --hidden-import=PIL.Image ^
-          --hidden-import=PIL.ImageGrab ^
-          --hidden-import=PIL.ImageTk ^
-          --hidden-import=pywinauto ^
-          --hidden-import=pywinauto.application ^
-          --hidden-import=pywinauto.mouse ^
-          --hidden-import=pywinauto.keyboard ^
-          --exclude-module=matplotlib ^
-          --exclude-module=scipy ^
-          --clean
-          
-    # Verificar que se creó el .exe
-    - name: Check if exe was created
-      run: |
-        if exist dist\Monaco_Bot.exe (
-          echo "✅ EXE created successfully!"
-          dir dist
-        ) else (
-          echo "❌ EXE not found!"
-          exit 1
-        )
-        
-    # Subir el ejecutable como descarga
-    - name: Upload executable
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Monaco_Bot_Windows
+        name: Monaco_Bot_${{ matrix.os }}_Python${{ matrix.python-version }}
         path: dist/Monaco_Bot.exe
-        retention-days: 30
-        
-    # Crear release automático (opcional)
-    - name: Create Release
-      if: github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.0.${{ github.run_number }}
-        name: Monaco Bot v1.0.${{ github.run_number }}
-        files: dist/Monaco_Bot.exe
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
